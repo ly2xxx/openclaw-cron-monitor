@@ -1,0 +1,7 @@
+# Exclude all data/output files - keep only source code, docs, and the curated AI-jobs.md
+*.json
+*.txt
+# Exception: AI-jobs.md is the curated job tracker - commit it (and its backups) so the
+# openclaw-cron-monitor repo is a complete, portable record of the AI-jobs monitoring workflow
+!AI-jobs.md
+!AI-jobs.md.bak*

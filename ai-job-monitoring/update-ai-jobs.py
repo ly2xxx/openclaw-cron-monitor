@@ -340,3 +340,62 @@ with open(JOBS_MD, "w", encoding="utf-8", newline="") as f:
     f.write(new_md)
 print(f"[OK] Wrote {JOBS_MD} ({len(new_md)} chars)")
 print(f"[OK] Main table now has {len(all_rows)} rows (was {len(existing_rows)}, net {len(all_rows)-len(existing_rows):+d})")
+
+# ---- 11. Commit + push to GitHub (so the public repo stays in sync) ----
+# Done here (not in PS1) because this is the script that actually mutates AI-jobs.md.
+# Skips silently if nothing changed (no daily drift) and gracefully no-ops if
+# the script is run outside a git checkout (e.g. local testing).
+import subprocess
+try:
+    repo_dir = JOBS_MD.parent  # assume AI-jobs.md lives inside the repo
+    # Only attempt if the repo dir is actually a git working tree
+    is_git = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=str(repo_dir), capture_output=True, text=True
+    )
+    if is_git.returncode != 0:
+        print("[INFO] AI-jobs.md parent is not a git repo - skipping commit/push")
+    else:
+        # git add AI-jobs.md
+        add = subprocess.run(
+            ["git", "add", str(JOBS_MD)],
+            cwd=str(repo_dir), capture_output=True, text=True
+        )
+        if add.returncode != 0:
+            print(f"[WARN] git add failed: {add.stderr.strip()}")
+        else:
+            # Check whether anything is staged
+            diff = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=str(repo_dir), capture_output=True, text=True
+            )
+            if diff.stdout.strip():
+                msg = (
+                    f"daily scan {TODAY_ISO}: "
+                    f"{len(new_rows)} NEW, {len(refreshed)} REFRESHED, {len(reposted)} REPOSTS"
+                )
+                commit = subprocess.run(
+                    ["git", "commit", "-m", msg],
+                    cwd=str(repo_dir), capture_output=True, text=True
+                )
+                if commit.returncode != 0:
+                    print(f"[WARN] git commit failed: {commit.stderr.strip()}")
+                else:
+                    print(f"[OK] Committed: {msg}")
+                    push = subprocess.run(
+                        ["git", "push", "origin", "main"],
+                        cwd=str(repo_dir), capture_output=True, text=True, timeout=60
+                    )
+                    if push.returncode != 0:
+                        # Don't fail the whole run on push failure - cron will retry
+                        # tomorrow. But make it loud so we notice.
+                        print(f"[WARN] git push failed: {push.stderr.strip()}")
+                        print(f"[WARN] Run manually: cd {repo_dir} && git push origin main")
+                    else:
+                        print(f"[OK] Pushed to origin/main ({push.stdout.strip().splitlines()[-1] if push.stdout.strip() else 'ok'})")
+            else:
+                print("[INFO] No changes to AI-jobs.md - skipping commit")
+except FileNotFoundError:
+    print("[INFO] git not on PATH - skipping commit/push")
+except subprocess.TimeoutExpired:
+    print("[WARN] git push timed out after 60s - run manually")

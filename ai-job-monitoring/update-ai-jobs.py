@@ -23,6 +23,8 @@ from datetime import date, timedelta
 from pathlib import Path
 
 # ---- Paths (resolved relative to this script for portability) ----
+from exclusions import is_excluded, reason as exclusion_reason
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 HERE_DIR = Path(os.environ.get("AI_JOB_MONITOR_DIR", str(SCRIPT_DIR)))
 # AI-jobs.md lives next to this script by default. Override with AI_JOBS_MD if needed.
@@ -237,6 +239,23 @@ for r in new_rows:
 
 # ---- 6. Sort main table by Posted DESC, Role ASC ----
 all_rows = deduped_existing + new_rows
+
+# ---- 6a. Drop excluded rows (see exclusions.py) ----
+# Applied to the combined list, so this both purges rows already in the file and
+# stops today's scan re-adding them. The historical "## Daily Scan" sections are
+# deliberately left untouched: they are the audit trail the repost detection and
+# time-in-market analysis read from.
+_kept, _dropped = [], []
+for _r in all_rows:
+    (_dropped if is_excluded(_r.get("role"), _r.get("company")) else _kept).append(_r)
+if _dropped:
+    print(f"[INFO] Excluded {len(_dropped)} row(s) from the live table:")
+    from collections import Counter as _Counter
+    for _why, _n in _Counter(
+        exclusion_reason(_r.get("role"), _r.get("company")) for _r in _dropped
+    ).most_common():
+        print(f"   {_n:4d}  {_why}")
+all_rows = _kept
 
 def sort_key(row):
     try:

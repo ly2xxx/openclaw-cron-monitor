@@ -1,12 +1,32 @@
-# Proper LinkedIn scan using [data-job-id] selectors
-# Uses CDP Page.navigate (doesn't kill WS) and waits for start= parameter to change
+# Generic LinkedIn job search scanner using CDP and [data-job-id] selectors.
+# Walks up to 3 pages and writes JSON files: <PAGE_PREFIX>1.json, 2.json, 3.json
+#
+# Environment variables (override defaults):
+#   BASE_URL        - LinkedIn search URL (required, must include any f_TPR/keywords/location)
+#   PAGE_PREFIX     - output file prefix (default: "linkedin-page" -> linkedin-page1.json etc.)
+#   OUT_DIR         - output directory (default: script directory)
+#   CHROME_DEBUG    - Chrome debug URL (default: http://localhost:9222)
+#   ORIGIN_HEADER   - Origin header for WS (default: $CHROME_DEBUG value)
 
 $ErrorActionPreference = 'Stop'
-# ---- Paths (override with env vars for portability) ----
-$ChromeDebug = 'http://localhost:9222'
-$OriginHeader = 'http://localhost:9222'
-$OutDir = if ($env:AI_JOB_MONITOR_DIR) { $env:AI_JOB_MONITOR_DIR } else { Join-Path $PSScriptRoot '.' }
-$BaseURL = 'https://www.linkedin.com/jobs/search/?currentJobId=4415524750&f_TPR=r2592000&keywords=AI%20Engineer&location=Greater%20Glasgow%20Area'
+
+$ChromeDebug = if ($env:CHROME_DEBUG) { $env:CHROME_DEBUG } else { 'http://localhost:9222' }
+$OriginHeader = if ($env:ORIGIN_HEADER) { $env:ORIGIN_HEADER } else { $ChromeDebug }
+$OutDir = if ($env:OUT_DIR) { $env:OUT_DIR } elseif ($env:AI_JOB_MONITOR_DIR) { $env:AI_JOB_MONITOR_DIR } else { $PSScriptRoot }
+$PagePrefix = if ($env:PAGE_PREFIX) { $env:PAGE_PREFIX } else { 'linkedin-page' }
+$BaseURL = $env:BASE_URL
+if (-not $BaseURL) {
+  Write-Output "[ERR] BASE_URL env var is required"
+  exit 1
+}
+
+# Ensure LinkedIn search URL ends with start param
+if ($BaseURL -notmatch 'start=') {
+  $BaseURL = "$BaseURL&start=0"
+}
+
+Write-Output "Scanning: $BaseURL"
+Write-Output "Output prefix: $PagePrefix (dir: $OutDir)"
 
 # ---- Find logged-in LinkedIn tab ----
 $tabs = Invoke-RestMethod -Uri "$ChromeDebug/json" -Method Get
@@ -86,10 +106,11 @@ function Extract-Value {
 
 # Navigate to page 1
 Write-Output "=== Navigating to page 1 ==="
-[void](Invoke-Cdp -Method 'Page.navigate' -Params @{ url = "$BaseURL&start=0" })
+$navUrl = $BaseURL -replace 'start=\d+', 'start=0'
+[void](Invoke-Cdp -Method 'Page.navigate' -Params @{ url = $navUrl })
 Start-Sleep -Seconds 6
 
-# Wait until cards rendered (poll for data-job-id count > 0)
+# Wait until cards rendered
 $readyExpr = @'
 (() => {
   const cards = document.querySelectorAll('div[data-job-id]');
@@ -126,7 +147,6 @@ $jsExtract = @'
     const link = linkEl ? linkEl.href : null;
     if (!title || !company) continue;
     const allText = c.innerText.replace(/\n+/g, ' | ').slice(0, 500);
-    // Extract "X minutes/hours/days/weeks/months ago" or "Reposted"
     let posted = null;
     const agoMatch = allText.match(/(\d+\s+(?:minute|hour|day|week|month|year)s?\s+ago)/i);
     if (agoMatch) posted = agoMatch[1];
@@ -135,7 +155,6 @@ $jsExtract = @'
     else if (/Yesterday/i.test(allText)) posted = 'Yesterday';
     else if (/Reposted/i.test(allText)) posted = 'Reposted';
     else if (/Actively reviewing/i.test(allText)) posted = 'Actively reviewing';
-    // Promoted / with verification label often follows the title; strip it for cleanliness
     const cleanTitle = title.replace(/\s+with verification$/i, '').trim();
     out.push({ title: cleanTitle, company, location, link, jobId, posted, flags: allText });
   }
@@ -145,7 +164,6 @@ $jsExtract = @'
 
 function Extract-Page {
   param([string]$PageLabel)
-  # Scroll to trigger lazy loading
   for ($i = 0; $i -lt 6; $i++) {
     [void](Invoke-Cdp -Method 'Runtime.evaluate' -Params @{ expression = 'window.scrollTo(0, document.body.scrollHeight); 1'; returnByValue = $true })
     Start-Sleep -Milliseconds 1000
@@ -157,7 +175,6 @@ function Extract-Page {
     return $null
   }
   Write-Host "[$PageLabel] $($payload.Length) chars"
-  # Clear the success stream so only the payload is captured by callers
   return $payload
 }
 
@@ -165,10 +182,8 @@ function Click-Page {
   param([int]$PageNum, [int]$ExpectedStart)
   $js = "(() => { const btns = document.querySelectorAll('button[aria-label]'); for (const b of btns) { if (b.getAttribute('aria-label') === 'Page $PageNum') { b.click(); return 'CLICKED'; } } return 'NOT_FOUND'; })()"
   $r = Invoke-Cdp -Method 'Runtime.evaluate' -Params @{ expression = $js; returnByValue = $true }
-  Write-Output "CLICK_PAGE_$PageNum RAW = $($r.Substring(0, [Math]::Min(300, $r.Length)))"
   $v = Extract-Value -Resp $r
   Write-Output "CLICK_PAGE_$PageNum = $v"
-  # Wait until URL start= changes to expected value
   $startExpr = "new URL(location.href).searchParams.get('start') || '0'"
   for ($i = 0; $i -lt 20; $i++) {
     Start-Sleep -Seconds 1
@@ -184,17 +199,17 @@ function Click-Page {
 
 # ---- Page 1 ----
 $page1 = Extract-Page -PageLabel 'PAGE1'
-[System.IO.File]::WriteAllText("$OutDir\linkedin-page1.json", $page1, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText("$OutDir\$PagePrefix`1.json", $page1, [System.Text.UTF8Encoding]::new($false))
 
 # ---- Page 2 ----
 Click-Page -PageNum 2 -ExpectedStart 25
 $page2 = Extract-Page -PageLabel 'PAGE2'
-[System.IO.File]::WriteAllText("$OutDir\linkedin-page2.json", $page2, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText("$OutDir\$PagePrefix`2.json", $page2, [System.Text.UTF8Encoding]::new($false))
 
 # ---- Page 3 ----
 Click-Page -PageNum 3 -ExpectedStart 50
 $page3 = Extract-Page -PageLabel 'PAGE3'
-[System.IO.File]::WriteAllText("$OutDir\linkedin-page3.json", $page3, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText("$OutDir\$PagePrefix`3.json", $page3, [System.Text.UTF8Encoding]::new($false))
 
 # ---- Close ----
 $ws.CloseAsync('NormalClosure', 'done', $ct).Wait()

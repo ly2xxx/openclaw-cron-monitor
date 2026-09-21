@@ -26,7 +26,7 @@ on:
       custom_prompt:
         description: "Additional instructions or custom prompt"
         required: false
-        default: "For daily job scan updates to AI-jobs.md, please explicitly include a section listing all newly added/posted jobs with their Role, Company, Location, and Markdown Link."
+        default: "For daily job scan updates to AI-jobs.md and/or AI-Enablement-Europe.md, please explicitly include a section listing all newly added/posted jobs with their Role, Company, Location, and Markdown Link."
 
 permissions:
   contents: write

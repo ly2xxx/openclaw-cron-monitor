@@ -21,7 +21,7 @@ Behavior:
   - Updates header (Last updated date + scan summary line)
   - Commits + pushes via git (no-op if not in a repo)
 
-Same conventions as the original update-ai-jobs.py (Posted = YYYY-MM-DD, REFRESHED/REPOST tagging).
+Same conventions as the legacy Glasgow-only `update-ai-jobs.py` script (deleted 2026-09-22; this file supersedes it for both regions).
 """
 
 import json

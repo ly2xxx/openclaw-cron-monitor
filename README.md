@@ -24,6 +24,7 @@ Chrome or CDP is needed, and the scripts use only the Python standard library.
 | `fetch-jobs.py` | Pages through the guest endpoint for `BASE_URL`, writes `europe-page1..N.json` |
 | `update-jobs.py` | Merges the page JSONs into the tracker (NEW / REFRESHED / REPOST), re-sorts, appends a `## Daily Scan` section, commits + pushes (`JOBS_COMMIT=0` to skip) |
 | `AI-Enablement-Europe.md` | The tracker |
+| `daily-ai-enablement-europe-scan.cron.json` | Backup of the live OpenClaw cron job (id `91867d3f-9285-422a-a6ff-a0ffe3c1012e`) — schedule, payload, delivery, failureAlert. Restored via `openclaw cron add` after `openclaw cron remove`. |
 
 Run manually: `pwsh ai-job-monitoring/scan-europe.ps1`, or set `BASE_URL`,
 `PAGE_PREFIX` and `JOBS_MD` yourself and call the two Python scripts in turn.

@@ -1,0 +1,33 @@
+{
+  "id": "91867d3f-9285-422a-a6ff-a0ffe3c1012e",
+  "name": "daily-ai-enablement-europe-scan",
+  "description": "Daily 09:00 London: scan Europe \"AI Enablement\" LinkedIn roles via the guest API endpoint, update AI-Enablement-Europe.md, auto-commit + push. WhatsApp summary on success/error.",
+  "enabled": true,
+  "createdAtMs": 1783856714873,
+  "updatedAtMs": 1790169533543,
+  "agentId": "main",
+  "schedule": {
+    "kind": "cron",
+    "expr": "0 9 * * *",
+    "tz": "Europe/London"
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "agentTurn",
+    "message": "You are running the daily LinkedIn AI Enablement Europe scan for Master Yang. Do NOT ask for clarification — execute the workflow below end to end. Time budget: <10 minutes.\n\n# Goal\nScan LinkedIn \"AI Enablement\" roles across Europe using LinkedIn's public guest endpoint, update `AI-Enablement-Europe.md` (in `C:\\Users\\vl\\clawd\\openclaw-cron-monitor\\ai-job-monitoring\\`), and report a one-line summary via WhatsApp to +447877585536.\n\n# Why the new approach\nLinkedIn redesigned the logged-in search-results page in late Sep 2026 — it's now a client-side virtualized SPA that no DOM-based extractor can read. The public guest endpoint `/jobs-guest/jobs/api/seeMoreJobPostings/search` still serves server-rendered HTML and needs no login. The PS1 + Python scripts in `ai-job-monitoring/` wrap that endpoint with stdlib-only Python + PowerShell.\n\n# Scripts location\nALL scripts and outputs live in `C:\\Users\\vl\\clawd\\openclaw-cron-monitor\\ai-job-monitoring\\`. Do NOT look at the old `linkedin-scan.ps1`, `scan-glasgow.ps1`, `AI-jobs.md`, etc. — those were retired 2026-09-23.\n\nFiles:\n- `scan-europe.ps1` — runs fetch-jobs.py + update-jobs.py for AI-Enablement-Europe.md. Auto-commits and pushes to origin on success.\n- `fetch-jobs.py` — calls the guest endpoint, paginates, writes `europe-pageN.json`. Stdlib-only. Exits 1 on 0 jobs.\n- `update-jobs.py` — reads the page JSONs, updates the markdown tracker, commits, pushes.\n\n# Workflow\n\n## 1. Git pull first (CRITICAL — Master Yang may have edited by hand)\n- `cd C:\\Users\\vl\\clawd\\openclaw-cron-monitor`\n- `git fetch origin`\n- `git status` — if there are local uncommitted changes, STOP and WhatsApp Yang with the diff (do NOT discard or stash them)\n- If clean: `git pull --rebase --autostash`\n- If `git pull` reports conflicts, STOP and WhatsApp Yang with the conflict — do NOT attempt to auto-resolve\n\n## 2. Run the scan\n- `cd C:\\Users\\vl\\clawd\\openclaw-cron-monitor\\ai-job-monitoring`\n- Remove any stale page files first: `Remove-Item europe-page*.json -ErrorAction SilentlyContinue`\n- Run `powershell -ExecutionPolicy Bypass -File .\\scan-europe.ps1 2>&1`\n- Capture the entire stdout — it contains the count lines you need for the summary.\n\nExpected stdout patterns to capture for the summary:\n- `[INFO] N raw -> M unique today`\n- `[OK] Refreshed: X, New: Y, Reposts: Z`\n- `[OK] Wrote ... AI-Enablement-Europe.md (NNNNN chars)`\n- `[OK] Main table now has R rows (was W, net +/-N)`\n- `[OK] Committed: daily scan YYYY-MM-DD ...`\n- `[OK] Pushed to origin/main`\n- `[OK] N unique jobs across P page(s)` (from fetch-jobs.py)\n\nIf the script exits non-zero, capture the error verbatim and STOP — do NOT retry, do NOT touch the markdown file. Report failure to WhatsApp.\n\n## 3. WhatsApp summary\nUse `message` tool with `channel: whatsapp`, `to: +447877585536`:\n```\nAI Enablement scan - YYYY-MM-DD (commit <short-sha>)\n<NEW> NEW, <REFRESHED> REFRESHED, <REPOSTS> REPOSTS\n<Tracker now has N rows>\n<1-line highlight of top 2-3 NEW roles by posted date if any>\n```\nKeep under 8 lines. NEVER use the family WhatsApp group JID (447838841359-1589920128@g.us) — Master Yang's personal number ONLY.\n\nIf scan failed, format as:\n```\nAI Enablement scan - YYYY-MM-DD FAILED\n<verbatim error from fetch-jobs.py or update-jobs.py>\n```\n\n# Critical rules\n- DO NOT use any `browser.*` plugin (it's blocked). Use `scan-europe.ps1` only.\n- DO NOT modify the scan scripts — they are tested and working. If they fail, report the error verbatim.\n- DO NOT touch AI-Enablement-Europe.md by hand. The Python updater handles dedup, sort, status append, repost detection.\n- DO NOT send messages on Yang's behalf on any social platform. Only WhatsApp the scan summary to his personal number.\n- The Posted column is YYYY-MM-DD (fetched from LinkedIn's <time datetime=\"...\"> attribute, so it's exact).\n- If anything looks weird (no jobs found, file grows by >100 rows in one run, duplicates appear), surface it in WhatsApp and stop — do not silently fix.\n- The tracker file is in the openclaw-cron-monitor repo (private GitHub: github.com/ly2xxx/openclaw-cron-monitor). The repo's `.gitignore` whitelists it via `!AI-Enablement-Europe.md`.\n- ALWAYS run `git pull` before scanning (step 1) — Master Yang edits this file by hand and pushes to GitHub.\n- `scan-europe.ps1` auto-commits and pushes on success — do NOT add a separate git commit step.\n- The guest endpoint is rate-limited; fetch-jobs.py backs off 10/30/90s on 429. Do NOT lower these.",
+    "timeoutSeconds": 900
+  },
+  "delivery": {
+    "mode": "announce",
+    "channel": "whatsapp",
+    "to": "+447877585536",
+    "bestEffort": true
+  },
+  "failureAlert": {
+    "after": 1,
+    "channel": "whatsapp",
+    "cooldownMs": 3600000,
+    "mode": "announce"
+  }
+}

@@ -6,3 +6,6 @@
 # Exception: AI-Enablement-Europe.md is the curated Europe-wide tracker (only curated file now)
 !AI-Enablement-Europe.md
 !AI-Enablement-Europe.md.bak*
+
+# Exception: cron backup file (lives alongside the tracker for portability)
+!daily-ai-enablement-europe-scan.cron.json

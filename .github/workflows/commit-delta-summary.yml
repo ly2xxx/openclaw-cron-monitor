@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "ai-job-monitoring/AI-jobs.md"
+      - "ai-job-monitoring/AI-Enablement-Europe.md"
   pull_request:
     branches: [main]
     paths:
-      - "ai-job-monitoring/AI-jobs.md"
+      - "ai-job-monitoring/AI-Enablement-Europe.md"
   workflow_dispatch:
     inputs:
       base_ref:
@@ -51,7 +51,7 @@ jobs:
           model: ${{ inputs.model || github.event.inputs.model || vars.OLLAMA_MODEL || 'deepseek-v4-flash:cloud' }}
           max-diff-chars: ${{ inputs.max_diff_chars || vars.MAX_DIFF_CHARS || '60000' }}
           ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
-          custom-prompt: ${{ inputs.custom_prompt || github.event.inputs.custom_prompt || vars.CUSTOM_PROMPT || 'For daily job scan updates to AI-jobs.md, please explicitly include a section listing all newly added/posted jobs with their Role, Company, Location, and Markdown Link.' }}
+          custom-prompt: ${{ inputs.custom_prompt || github.event.inputs.custom_prompt || vars.CUSTOM_PROMPT || 'For daily job scan updates to AI-Enablement-Europe.md, please explicitly include a section listing all newly added/posted jobs with their Role, Company, Location, and Markdown Link.' }}
 
       - name: Upload summary
         if: steps.summary.outputs.skipped == 'false'
